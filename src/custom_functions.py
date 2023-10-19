@@ -53,7 +53,13 @@ def transform_data(data_2018, data_2019, data_2020):
     data_2019['CO3'].fillna(data_2019['district'].map(co3_mean_dict_2019), inplace=True)
     
     # Concatenar los DataFrames data_2018 y data_2019 en data_agua
-    data_agua = pd.concat([data_2018, data_2019])
+    data_agua = pd.concat([data_2018, data_2019, data_2020])
+    
+    col_eliminar= ['sno', 'district', 'mandal', 'village', 'lat_gis', 'long_gis','RSC  meq  / L','Classification.1', 'anyo']
+    data_agua=data_agua.drop(columns=col_eliminar)
+
+    # LAs clasificaciones OG, O.G, C3S4 y C2S2 solo continene 1 registro cada una. Causan demasiado ruido, por tanto las eliminamos  
+    data_agua = data_agua[~data_agua['Classification'].isin(['C3S4', 'C2S2','OG','O.G'])]
     
     # Calcular la media de la columna 'CO3'
     mean_co3 = data_agua['CO3'].mean()
@@ -64,84 +70,90 @@ def transform_data(data_2018, data_2019, data_2020):
     # Sustituir los valores nulos en 'gwl' con la media de la columna 'gwl'
     data_agua['gwl'].fillna(data_agua['gwl'].mean(), inplace=True)
     
-    # Sustituir los valores nulos en 'gwl' de data_2020 con la media de la columna 'gwl'
-    data_2020['gwl'].fillna(data_2020['gwl'].mean(), inplace=True)
+    # # Sustituir los valores nulos en 'gwl' de data_2020 con la media de la columna 'gwl'
+    # data_2020['gwl'].fillna(data_2020['gwl'].mean(), inplace=True)
     
     return data_2018, data_2019, data_2020, data_agua
 
+# Llama a la función con tus DataFrames
+data_2018, data_2019, data_2020, data_agua = transform_data(data_2018, data_2019, data_2020)
 
-def modelos_ML(data_agua, data_2020):
-    # Dividir los datos en conjuntos de entrenamiento (2018 y 2019) y prueba (2020)
-    X_train = data_agua.drop(columns=['Classification', 'Classification.1'])
-    y_train = data_agua['Classification']
-    X_test = data_2020.drop(columns=['Classification', 'Classification.1'])
-    y_test = data_2020['Classification']
 
-    # Seleccionar las características numéricas y categóricas
-    numeric_features = X_train.select_dtypes(include=['float64', 'int64'])
-    categorical_features = X_train.select_dtypes(include=['object'])
+def modelos_ML(data_agua):
+    X = data_agua.drop(['Classification'], axis=1)
+    y = data_agua['Classification']
 
-    # Crear transformadores para las características numéricas y categóricas
-    numeric_transformer = StandardScaler()
-    categorical_transformer = OneHotEncoder(handle_unknown='ignore')
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, stratify=y, random_state=42)
 
-    # Combinar los transformadores utilizando ColumnTransformer
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', numeric_transformer, numeric_features.columns),
-            ('cat', categorical_transformer, categorical_features.columns)
-        ])
+    # Normalizacion de los datos 
+    scaler = StandardScaler()
+    X_train_normalized = scaler.fit_transform(X_train)
+    X_test_normalized = scaler.transform(X_test)
 
-    # Crear un pipeline que incluye la transformación y el modelo (puedes reemplazar LinearRegression con el modelo que prefieras)
-    pipeline = Pipeline([
-        ('preprocessor', preprocessor),
-        ('regressor', RandomForestClassifier())  # Puedes reemplazar esto con el modelo que estás utilizando
-    ])
+    # PCA
+    pca = PCA(n_components=12)
+    X_train_pca = pca.fit_transform(X_train_normalized)
+    X_test_pca = pca.transform(X_test_normalized)
+    explained_variance_ratio = pca.explained_variance_ratio_
 
-    # Aplicar la transformación a los datos de entrenamiento
-    X_train_scaled = preprocessor.fit_transform(X_train)
-
-    # Aplicar la transformación a los datos de prueba
-    X_test_scaled = preprocessor.transform(X_test)
-
-    # Entrenar los modelos
+    # Decision Tree Classifier
     dt_classifier = DecisionTreeClassifier()
+    dt_classifier.fit(X_train_pca, y_train)
+    dt_predictions = dt_classifier.predict(X_test_pca)
+    dt_accuracy = accuracy_score(y_test, dt_predictions)
+
+    # Random Forest Classifier
     rf_classifier = RandomForestClassifier()
-    svm_classifier = SVC()
+    rf_classifier.fit(X_train_pca, y_train)
+    rf_predictions = rf_classifier.predict(X_test_pca)
+    rf_accuracy = accuracy_score(y_test, rf_predictions)
 
-    dt_classifier.fit(X_train_scaled, y_train)
-    rf_classifier.fit(X_train_scaled, y_train)
-    svm_classifier.fit(X_train_scaled, y_train)
+    # Support Vector Classifier
+    svc_classifier = SVC()
+    svc_classifier.fit(X_train_pca, y_train)
+    svc_predictions = svc_classifier.predict(X_test_pca)
+    svc_accuracy = accuracy_score(y_test, svc_predictions)
 
-    # Realizar predicciones en el conjunto de prueba
-    y_pred_dt = dt_classifier.predict(X_test_scaled)
-    y_pred_rf = rf_classifier.predict(X_test_scaled)
-    y_pred_svm = svm_classifier.predict(X_test_scaled)
+    # K-Nearest Neighbors
+    knn_classifier = KNeighborsClassifier()
+    knn_classifier.fit(X_train_pca, y_train)
+    knn_predictions = knn_classifier.predict(X_test_pca)
+    knn_accuracy = accuracy_score(y_test, knn_predictions)
 
-    # Evaluar los modelos y comparar su rendimiento
-    accuracy_dt = accuracy_score(y_test, y_pred_dt)
-    accuracy_rf = accuracy_score(y_test, y_pred_rf)
-    accuracy_svm = accuracy_score(y_test, y_pred_svm)
+     # Guarda los modelos en archivos .pkl
+    with open('models/decision_tree_model.pkl', 'wb') as file:
+        pickle.dump(dt_classifier, file)
 
-    # Imprimir informe de clasificación para cada modelo
-    print("Informe de clasificación del Árbol de Decisión:")
-    print(classification_report(y_test, y_pred_dt))
-    
-    print("Informe de clasificación del Bosque Aleatorio:")
-    print(classification_report(y_test, y_pred_rf))
-    
-    print("Informe de clasificación de la Máquina de Vectores de Soporte (SVM):")
-    print(classification_report(y_test, y_pred_svm))
-    
+    with open('models/random_forest_model.pkl', 'wb') as file:
+        pickle.dump(rf_classifier, file)
+
+    with open('models/svm_model.pkl', 'wb') as file:
+        pickle.dump(svc_classifier, file)
+
+    with open('models/knn_model.pkl', 'wb') as file:
+        pickle.dump(knn_classifier, file)
+
     return {
-        'dt_classifier': dt_classifier,
-        'rf_classifier': rf_classifier,
-        'svm_classifier': svm_classifier,
-        'accuracy_dt': accuracy_dt,
-        'accuracy_rf': accuracy_rf,
-        'accuracy_svm': accuracy_svm,
-        'y_pred_dt': y_pred_dt,
-        'y_pred_rf': y_pred_rf,
-        'y_pred_svm': y_pred_svm,
-        'y_test': y_test  # Devolver y_test como parte de los resultados
+        "explained_variance_ratio": explained_variance_ratio,
+        "decision_tree_accuracy": dt_accuracy,
+        "random_forest_accuracy": rf_accuracy,
+        "svc_accuracy": svc_accuracy,
+        "knn_accuracy": knn_accuracy,
+        "X_train": X_train,
+        "X_test": X_test,
+        "y_train": y_train,
+        "y_test": y_test,
+        "X_train_pca": X_train_pca,
+        "X_test_pca": X_test_pca,  # Agregar X_test_pca aquí
+        "dt_predictions": dt_predictions
     }
+    
+   
+# Llama a la función con tu conjunto de datos Water_data
+resultados = modelos_ML(data_agua)
+print("Explained Variance Ratio:", resultados["explained_variance_ratio"])
+print("Decision Tree Accuracy:", resultados["decision_tree_accuracy"])
+print("Random Forest Accuracy:", resultados["random_forest_accuracy"])
+print("SVC Accuracy:", resultados["svc_accuracy"])
+print("K-NN Accuracy:", resultados["knn_accuracy"])
