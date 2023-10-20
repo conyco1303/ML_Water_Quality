@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import pickle
 from custom_functions import transform_data, modelos_ML
+
 # Descripción de las clasificaciones del agua
 descri_clasificacion = {
     'C1S1': 'Calidad de Agua C1S1: Las aguas bajas en salinidad y sodio son adecuadas para el riego y se pueden utilizar con la mayoría de los cultivos sin restricciones de uso en la mayoría de los suelos.',
@@ -14,6 +15,7 @@ descri_clasificacion = {
     'C4S3': 'Calidad de Agua C4S3: Las aguas con muy alta salinidad y alto contenido de sodio pueden causar niveles perjudiciales de sodio intercambiable en la mayoría de los suelos. Requieren un manejo especial del suelo, buen drenaje, alta lixiviación y adición de materia orgánica. La enmienda de yeso facilita su uso.',
     'C4S4': 'Calidad de Agua C4S4: Las aguas con muy alta salinidad y muy alto contenido de sodio generalmente no son aptas para el riego. Estas aguas contienen cloruro de sodio y pueden presentar riesgos de sodio. Pueden utilizarse en suelos de textura gruesa con excelente drenaje para cultivos extremadamente tolerantes a la sal. La enmienda de yeso es esencial para su aprovechamiento.'
 }
+
 # Cargar los modelos
 
 with open('models/decision_tree_model.pkl','rb') as archivo:

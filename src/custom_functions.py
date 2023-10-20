@@ -4,6 +4,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import streamlit as st
 import sys
+import pickle
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
@@ -17,6 +18,11 @@ from sklearn.linear_model import LinearRegression
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+
+data_2018 = pd.read_csv('./data/ground_water_quality_2018_post.csv')
+data_2019 = pd.read_csv('./data/ground_water_quality_2019_post.csv')
+data_2020 = pd.read_csv('./data/ground_water_quality_2020_post.csv') 
+
 
 def transform_data(data_2018, data_2019, data_2020):
     # Eliminar columnas "season" de los DataFrames
@@ -145,8 +151,9 @@ def modelos_ML(data_agua):
         "y_train": y_train,
         "y_test": y_test,
         "X_train_pca": X_train_pca,
-        "X_test_pca": X_test_pca,  # Agregar X_test_pca aquí
-        "dt_predictions": dt_predictions
+        "X_test_pca": X_test_pca,  
+        "dt_predictions": dt_predictions,
+        "X": X
     }
     
    
